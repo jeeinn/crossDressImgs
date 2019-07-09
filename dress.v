@@ -79,6 +79,7 @@ fn get_files(url string, dirs map[string] string) []string{
         //println('$dir.key: $k, $dir.val:$v')
 
         // /blob/master/403_Forbidden/QQ图片20190317231553.png
+        // https://raw.githubusercontent.com/komeiji-satori/Dress/master/AdrianWang/princess0.jpg
         println('$k is starting...')
         html := http.get(v)
         mut pos := 0
@@ -89,9 +90,10 @@ fn get_files(url string, dirs map[string] string) []string{
             }
             end := html.index_after('"', pos)
             text := html.substr(pos, end)
-            //println(text)
+            img_url := text.substr(5, text.len) // /master/AdrianWang/princess0.jpg
+            new_url := url.replace('https://github.com', 'https://raw.githubusercontent.com')
             if img_filter(text) {
-                file_urls << '$url$text'
+                file_urls << '$new_url$img_url'
             }
         }
         time.sleep_ms(1000)
