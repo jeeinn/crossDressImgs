@@ -90,10 +90,25 @@ fn get_files(url string, dirs map[string] string) []string{
             end := html.index_after('"', pos)
             text := html.substr(pos, end)
             //println(text)
-            file_urls << '$url$text'
+            if img_filter(text) {
+                file_urls << '$url$text'
+            }
         }
         time.sleep_ms(1000)
         println('$k is down.')
     }
     return file_urls
+}
+
+fn img_filter(str string) bool{
+    mut has_img := false
+    for img_type in ['jpg', 'jpeg', 'png', 'bmp', 'gif']{
+        if str.contains(img_type) || str.contains(img_type.to_upper()) {
+            has_img = true
+            println('img type is: $img_type')
+            break
+        }
+
+    }
+    return has_img
 }
