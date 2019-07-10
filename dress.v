@@ -9,23 +9,15 @@ import time
 fn main() {
     println('starting...')
 
-    files_txt := './imgs_url.txt'
-    if os.file_exists(files_txt){
+    imgs_url_path := './imgs_url.txt'
+    if os.file_exists(imgs_url_path){
         println('finished, ok.')
         return
     }
 
     url := 'https://github.com/komeiji-satori/Dress'
     dirs := get_dirs(url)
-    urls := get_files(url, dirs)
-
-    f := os.create(files_txt) or {
-        return
-    }
-    for url in urls{
-        f.write('$url\n')
-    }
-    f.close()
+    get_files(url, dirs, imgs_url_path)
 
     println('finished, ok..')
 }
@@ -33,9 +25,9 @@ fn main() {
 fn get_dirs(url string) map_string {
     mut dirs := map[string] string {}
 
-    dirs_txt := './dirs_url.txt'
-    if os.file_exists(dirs_txt){
-        dirs_list := os.read_lines(dirs_txt)
+    dirs_url_path := './dirs_url.txt'
+    if os.file_exists(dirs_url_path){
+        dirs_list := os.read_lines(dirs_url_path)
         for dir in dirs_list {
             k := dir.split('---')[0]
             v := dir.split('---')[1]
@@ -48,8 +40,8 @@ fn get_dirs(url string) map_string {
     html := http.get(url)
     // /komeiji-satori/Dress/tree/master/bakayui
     mut pos := 0
-    dirs_fd := os.create(dirs_txt) or {
-        println('canot create dirs_txt.')
+    dirs_fd := os.create(dirs_url_path) or {
+        println('canot create $dirs_url_path')
         return dirs
     }
     for {
@@ -59,8 +51,6 @@ fn get_dirs(url string) map_string {
         }
         end := html.index_after('"', pos)
         text := html.substr(pos, end)
-        //println(text)
-
         key := text.substr(13, text.len)
         dirs[key] = '$url$text'
         println('$url$text')
@@ -71,7 +61,7 @@ fn get_dirs(url string) map_string {
     return dirs
 }
 
-fn get_files(url string, dirs map[string] string) []string{
+fn get_files(url string, dirs map[string] string, imgs_url_path string) []string{
     mut file_urls := []string
     for dir in dirs.entries {
         k := dir.key
@@ -83,6 +73,10 @@ fn get_files(url string, dirs map[string] string) []string{
         println('$k is starting...')
         html := http.get(v)
         mut pos := 0
+        file_fd := os.open_append(imgs_url_path) or {
+            println('canot open_append $imgs_url_path')
+            break
+        }
         for {
             pos = html.index_after('/blob/master/', pos + 1)
             if pos == -1 {
@@ -93,11 +87,13 @@ fn get_files(url string, dirs map[string] string) []string{
             img_url := text.substr(5, text.len) // /master/AdrianWang/princess0.jpg
             new_url := url.replace('https://github.com', 'https://raw.githubusercontent.com')
             if img_filter(text) {
+                file_fd.write('$new_url$img_url\n')
                 file_urls << '$new_url$img_url'
             }
         }
-        time.sleep_ms(1000)
+        file_fd.close()
         println('$k is down.')
+        time.sleep_ms(1000)
     }
     return file_urls
 }
@@ -110,7 +106,6 @@ fn img_filter(str string) bool{
             println('img type is: $img_type')
             break
         }
-
     }
     return has_img
 }
