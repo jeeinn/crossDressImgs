@@ -4,6 +4,7 @@ Use Vlang to crawl image links for `komeiji-satori/Dress` projects
 ## Just for fun
 纯粹是为了练手，😄
 
+记得多看 [doc](https://github.com/vlang/v/blob/master/doc/docs.md)
 ## Usage
 
 * Install env
@@ -30,6 +31,8 @@ v run dress.v
 * Current Version
 
 `Vlang` 的当前版本 `V 0.1.12`
+
+`V 0.1.12` --> `V 0.1.28` (2020-08-05)
 
 ## Show
 展示

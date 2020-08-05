@@ -3,14 +3,14 @@
 // that can be found in the LICENSE file.
 
 import os
-import http
+import net.http
 import time
 
 fn main() {
     println('starting...')
 
     imgs_url_path := './imgs_url.txt'
-    if os.file_exists(imgs_url_path){
+    if os.exists(imgs_url_path){
         println('finished, ok.')
         return
     }
@@ -22,12 +22,12 @@ fn main() {
     println('finished, ok..')
 }
 
-fn get_dirs(url string) map_string {
+fn get_dirs(url string) map_string_string {
     mut dirs := map[string] string {}
 
     dirs_url_path := './dirs_url.txt'
-    if os.file_exists(dirs_url_path){
-        dirs_list := os.read_lines(dirs_url_path)
+    if os.exists(dirs_url_path){
+        dirs_list := os.read_lines(dirs_url_path) or { []string{} }
         for dir in dirs_list {
             k := dir.split('---')[0]
             v := dir.split('---')[1]
@@ -37,20 +37,20 @@ fn get_dirs(url string) map_string {
         return dirs
     }
 
-    html := http.get(url)
+    resp := http.get(url) or { exit(1) }
     // /komeiji-satori/Dress/tree/master/bakayui
     mut pos := 0
-    dirs_fd := os.create(dirs_url_path) or {
+    mut dirs_fd := os.create(dirs_url_path) or {
         println('canot create $dirs_url_path')
         return dirs
     }
     for {
-        pos = html.index_after('/tree/master/', pos + 1)
+        pos = resp.text.index_after('/tree/master/', pos + 1)
         if pos == -1 {
             break
         }
-        end := html.index_after('"', pos)
-        text := html.substr(pos, end)
+        end := resp.text.index_after('"', pos)
+        text := resp.text.substr(pos, end)
         key := text.substr(13, text.len)
         dirs[key] = '$url$text'
         println('$url$text')
@@ -62,28 +62,24 @@ fn get_dirs(url string) map_string {
 }
 
 fn get_files(url string, dirs map[string] string, imgs_url_path string) []string{
-    mut file_urls := []string
-    for dir in dirs.entries {
-        k := dir.key
-        v := dirs[k] //Real content must be accessed in this way
-        //println('$dir.key: $k, $dir.val:$v')
-
+    mut file_urls := [] string {}
+    for k, v in dirs {
         // /blob/master/403_Forbidden/QQ图片20190317231553.png
         // https://raw.githubusercontent.com/komeiji-satori/Dress/master/AdrianWang/princess0.jpg
         println('$k is starting...')
-        html := http.get(v)
+        resp := http.get(v) or { exit(1) }
         mut pos := 0
-        file_fd := os.open_append(imgs_url_path) or {
+        mut file_fd := os.open_append(imgs_url_path) or {
             println('canot open_append $imgs_url_path')
             break
         }
         for {
-            pos = html.index_after('/blob/master/', pos + 1)
+            pos = resp.text.index_after('/blob/master/', pos + 1)
             if pos == -1 {
                 break
             }
-            end := html.index_after('"', pos)
-            text := html.substr(pos, end)
+            end := resp.text.index_after('"', pos)
+            text := resp.text.substr(pos, end)
             img_url := text.substr(5, text.len) // /master/AdrianWang/princess0.jpg
             new_url := url.replace('https://github.com', 'https://raw.githubusercontent.com')
             if img_filter(text) {
