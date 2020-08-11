@@ -3,74 +3,95 @@
 // that can be found in the LICENSE file.
 
 import os
+import sync
 import net.http
 import time
+import crypto.md5
+
+const (
+    git_rep = 'https://github.com/komeiji-satori/Dress'
+    dirs_url_path = './dirs_url.txt'
+    imgs_url_path = './imgs_url.txt'
+    download_dir = './download_dir/'
+)
 
 fn main() {
-    println('starting...')
-
-    imgs_url_path := './imgs_url.txt'
+    if !os.is_dir(download_dir){
+        os.mkdir(download_dir) or {
+            println('Canot create: $download_dir')
+            return
+        }
+    }
     if os.exists(imgs_url_path){
-        println('finished, ok.')
+        println('FIle $imgs_url_path exist.')
         return
     }
 
-    url := 'https://github.com/komeiji-satori/Dress'
-    dirs := get_dirs(url)
-    get_files(url, dirs, imgs_url_path)
+    // Real Start
+    println('Starting...')
+    dirs := get_dirs(git_rep, dirs_url_path)
+    println('Get dirs_url finished.')
 
-    println('finished, ok..')
+    file_urls := get_file_urls(git_rep, dirs, imgs_url_path)
+    println('Get file_urls finished.')
+
+    // use WaitGroup to download
+    // mut file_urls := read_lines(imgs_url_path) or { []string{} }
+    download_files(file_urls, download_dir)
+
+    println('All down.')
 }
 
-fn get_dirs(url string) map_string_string {
+fn get_dirs(url string, save_path string) map_string_string {
     mut dirs := map[string] string {}
 
-    dirs_url_path := './dirs_url.txt'
-    if os.exists(dirs_url_path){
-        dirs_list := os.read_lines(dirs_url_path) or { []string{} }
-        for dir in dirs_list {
-            k := dir.split('---')[0]
-            v := dir.split('---')[1]
+    if os.exists(save_path){
+        dirs_list := os.read_lines(save_path) or { []string{} }
+        for d in dirs_list {
+            k := d.split('---')[0]
+            v := d.split('---')[1]
             dirs[k] = v
         }
-        println('get_dirs, ok.')
         return dirs
     }
 
     resp := http.get(url) or { exit(1) }
-    // /komeiji-satori/Dress/tree/master/bakayui
+    
     mut pos := 0
-    mut dirs_fd := os.create(dirs_url_path) or {
-        println('canot create $dirs_url_path')
+    mut dirs_fd := os.create(save_path) or {
+        println('Canot create $save_path')
         return dirs
     }
+    mut target_string := '/tree/master/'
+    // Bare `for` loop
+    // /komeiji-satori/Dress/tree/master/bakayui
     for {
-        pos = resp.text.index_after('/tree/master/', pos + 1)
+        pos = resp.text.index_after(target_string, pos + 1)
         if pos == -1 {
             break
         }
         end := resp.text.index_after('"', pos)
-        text := resp.text.substr(pos, end)
-        key := text.substr(13, text.len)
-        dirs[key] = '$url$text'
-        println('$url$text')
-        dirs_fd.write('$key---$url$text\n')
+        dir_name := resp.text.substr(pos, end)
+        key := dir_name.substr(target_string.len, dir_name.len)
+        dirs[key] = '$url$dir_name'
+        println('$url$dir_name')
+        dirs_fd.write('$key---$url$dir_name\n')
     }
     dirs_fd.close()
-    println('get_dirs, ok..')
     return dirs
 }
 
-fn get_files(url string, dirs map[string] string, imgs_url_path string) []string{
+// Note: sleep_ms(1000)
+fn get_file_urls(url string, dirs map[string] string, save_path string) []string{
     mut file_urls := [] string {}
     for k, v in dirs {
         // /blob/master/403_Forbidden/QQ图片20190317231553.png
         // https://raw.githubusercontent.com/komeiji-satori/Dress/master/AdrianWang/princess0.jpg
-        println('$k is starting...')
+        println('Dir $k get starting...')
         resp := http.get(v) or { exit(1) }
         mut pos := 0
-        mut file_fd := os.open_append(imgs_url_path) or {
-            println('canot open_append $imgs_url_path')
+        mut file_fd := os.open_append(save_path) or {
+            println('Canot open_append $save_path')
             break
         }
         for {
@@ -88,7 +109,7 @@ fn get_files(url string, dirs map[string] string, imgs_url_path string) []string
             }
         }
         file_fd.close()
-        println('$k is down.')
+        println('Dir $k get down.')
         time.sleep_ms(1000)
     }
     return file_urls
@@ -99,9 +120,30 @@ fn img_filter(str string) bool{
     for img_type in ['jpg', 'jpeg', 'png', 'bmp', 'gif']{
         if str.contains(img_type) || str.contains(img_type.to_upper()) {
             has_img = true
-            println('img type is: $img_type')
+            println('Img type is: $img_type')
             break
         }
     }
     return has_img
+}
+
+fn download_files(file_urls []string, save_dir string){
+    mut wg := sync.new_waitgroup()
+    mut output_file := ''
+    for url in file_urls{
+        mut ext_string := '.' + url.split('.').last().to_lower()
+        output_file = save_dir + md5.hexhash(url) + ext_string
+        if os.exists(output_file) {
+            continue
+        }
+        wg.add(1)
+        go download_file(url, output_file, mut wg)
+    }
+    wg.wait()
+}
+
+fn download_file (url string, output_file string, mut wg sync.WaitGroup){
+    http.download_file(url, output_file)
+    println('File $url download to $output_file finished.')
+    wg.done()
 }
